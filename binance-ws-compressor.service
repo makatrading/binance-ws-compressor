@@ -1,0 +1,11 @@
+[Install]
+WantedBy=network.target
+
+[Unit]
+Description=Compressing proxy for Binance WebSockets
+After=network.target
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/binance-ws-compressor
+Restart=on-failure
