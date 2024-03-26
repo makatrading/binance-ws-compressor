@@ -10,6 +10,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -40,13 +41,16 @@ func main() {
 }
 
 func serve(c net.Conn) {
+	connIDKey := "connectionID"
+	connID := uuid.NewString()
+	slog.Info(fmt.Sprintf("started serving client %s", c.RemoteAddr()), connIDKey, connID)
 	binanceConn, err := tls.Dial("tcp", config.BinanceHostPort, &tls.Config{InsecureSkipVerify: config.InsecureSkipVerify})
 	if err != nil {
-		slog.Error(fmt.Sprintf("dial Binance: %v", err))
+		slog.Error(fmt.Sprintf("dial Binance: %v", err), connIDKey, connID)
 		c.Close()
 		return
 	}
-	slog.Info("connected to Binance")
+	slog.Info("connected to Binance", connIDKey, connID)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -54,10 +58,10 @@ func serve(c net.Conn) {
 	go func() {
 		defer wg.Done()
 		if _, err := io.Copy(binanceConn, c); err != nil {
-			slog.Error(fmt.Sprintf("copy client to Binance: %v", err))
+			slog.Error(fmt.Sprintf("copy client to Binance: %v", err), connIDKey, connID)
 		}
 		if err := binanceConn.Close(); err != nil {
-			slog.Warn(fmt.Sprintf("close Binance connection: %v", err))
+			slog.Warn(fmt.Sprintf("close Binance connection: %v", err), connIDKey, connID)
 		}
 	}()
 
@@ -65,21 +69,21 @@ func serve(c net.Conn) {
 		defer wg.Done()
 		defer func() {
 			if err := c.Close(); err != nil {
-				slog.Warn(fmt.Sprintf("close client connection: %v", err))
+				slog.Warn(fmt.Sprintf("close client connection: %v", err), connIDKey, connID)
 			}
 		}()
 		w, err := flate.NewWriter(c, config.CompressionLevel)
 		if err != nil {
-			slog.Error(fmt.Sprintf("new writer for c: %v", err))
+			slog.Error(fmt.Sprintf("new writer for c: %v", err), connIDKey, connID)
 			return
 		}
 		defer func() {
 			if err := w.Close(); err != nil {
-				slog.Error(fmt.Sprintf("close writer: %v", err))
+				slog.Error(fmt.Sprintf("close writer: %v", err), connIDKey, connID)
 			}
 		}()
 		if _, err := copyWithFlush(w, binanceConn); err != nil {
-			slog.Error(fmt.Sprintf("copy Binance to client: %v", err))
+			slog.Error(fmt.Sprintf("copy Binance to client: %v", err), connIDKey, connID)
 		}
 	}()
 
